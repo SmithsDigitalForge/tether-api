@@ -5,6 +5,7 @@
 //
 
 #include "tether_api.h"
+#include "logger.h"
 #include <unistd.h>
 #include <assert.h>
 #include <stdlib.h>
@@ -67,12 +68,12 @@ struct tether_handle * tether_handle_new() {
     hnd->is_valid = 1;
     if (okFrontPanel_GetDeviceCount(hnd->ok) == 0) {
         // No OpalKelly devices... assume ice9
-        fprintf(stderr, "No opal kelly devices found.. Assuming ice9\n");
+        LOG_INFO("No opal kelly devices found.. Assuming ice9\n");
         okFrontPanel_Destruct(hnd->ok);
         hnd->is_ice9 = 1;
         hnd->ice9 = ice9_new();
     } else {
-        fprintf(stderr, "Found an opal kelly device.  Assuming this is an OK setup\n");
+        LOG_INFO("Found an opal kelly device.  Assuming this is an OK setup\n");
     }
     return hnd;
 }
@@ -168,10 +169,10 @@ enum TetherError tether_load_firmware(struct tether_handle *hnd, const char * fi
     if (!fname) {
         return Tether_InvalidParameter;
     }
-    printf("Selected firmware %s\n", fname);
+    LOG_INFO("Selected firmware %s\n", fname);
     zip_entry_open(zip, fname);
     zip_entry_read(zip, &buf, &bufsize);
-    printf("Read firmware buffer of size %zu\n", bufsize);
+    LOG_INFO("Read firmware buffer of size %zu\n", bufsize);
     zip_entry_close(zip);
     if (hnd->is_ice9) {
         ice9_flash_fpga_mem(buf, bufsize);
