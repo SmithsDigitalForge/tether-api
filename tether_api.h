@@ -40,6 +40,10 @@ EXTERN_C enum TetherError tether_initialize_firmware(struct tether_handle *hnd);
 
 EXTERN_C uint32_t get_firmware_base_clock_frequency(struct tether_handle *hnd);
 
+EXTERN_C void tether_set_info_logger(void (*log_info)(const char *format, ...));
+
+EXTERN_C void tether_set_error_logger(void (*log_error)(const char *file, int line, const char *format, ...));
+
 /*
  * Reset the firmware - this is required as the first step
  * after the firmware is loaded.  It forces the Memory interface
