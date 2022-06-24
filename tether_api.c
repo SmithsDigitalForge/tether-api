@@ -12,10 +12,10 @@
 #include <bits/types/struct_timespec.h>
 #include <time.h>
 #include "ice9.h"
-#include "zip/zip.h"
+#include "zip.h"
 #include <okFrontPanel.h>
 
-#define lib_try(x) {ecode = (x); if (ecode != OK) {return(ecode);}}
+#define lib_try(x) {ecode = (x); if (ecode != 0) {return(ecode);}}
 
 
 const uint8_t download_reset = 0;
@@ -171,7 +171,7 @@ enum TetherError tether_load_firmware(struct tether_handle *hnd, const char * fi
     printf("Selected firmware %s\n", fname);
     zip_entry_open(zip, fname);
     zip_entry_read(zip, &buf, &bufsize);
-    printf("Read firmware buffer of size %d\n", bufsize);
+    printf("Read firmware buffer of size %zu\n", bufsize);
     zip_entry_close(zip);
     if (hnd->is_ice9) {
         ice9_flash_fpga_mem(buf, bufsize);
@@ -618,6 +618,7 @@ enum TetherError set_lfdaq_tc_decimation_factor(struct tether_handle * hnd, uint
         case TUNI_PUMP: return set_pump_tc_decimation_factor(hnd, decimation_factor);
         case TUNI_DGS: return set_dgs_tc_decimation_factor(hnd, decimation_factor);
     }
+    return Tether_Error;
 }
 
 enum TetherError set_mfdaq_round_time_clocks(struct tether_handle * hnd, uint32_t time_in_clocks) {
