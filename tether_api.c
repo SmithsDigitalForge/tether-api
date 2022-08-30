@@ -42,6 +42,11 @@ const uint8_t tach_control_inter_sample_delay = 28;
 const uint8_t control_config = 29;
 const uint8_t control_version = 30;
 const uint8_t cjt_enable = 31;
+const uint8_t accel_master_base = 32;
+const uint8_t accel_mux_select = 36;
+const uint8_t accel_control_daq_enable = 37;
+const uint8_t accel_control_inter_sample_delay = 38;
+
 
 static enum TetherError ecode;
 
@@ -426,10 +431,17 @@ enum TetherError write_tc_register_byte(struct tether_handle * hnd, uint8_t reg,
 }
 
 enum TetherError do_spi_txn_mf(struct tether_handle * hnd, uint8_t bits, uint64_t mosi, uint64_t* miso) {
-    return do_spi_txn(hnd, tach_master_base, bits, mosi, miso);
+    switch (my_config) {
+        case TUNI_PUMP:
+            return do_spi_txn(hnd, accel_master_base, bits, mosi, miso);
+        case TUNI_DGS:
+            return do_spi_txn(hnd, tach_master_base, bits, mosi, miso);
+        default:
+            return Tether_Error;
+    }
 }
 
-enum TetherError read_mf_register_byte(struct tether_handle * hnd, uint8_t reg, uint8_t *reg_value) {
+enum TetherError read_mf_register_byte_dgs(struct tether_handle * hnd, uint8_t reg, uint8_t *reg_value) {
     uint64_t cmd = 0x48000000 | (((uint32_t) reg) << 16);
     uint64_t result;
     lib_try(do_spi_txn_mf(hnd,32, cmd, &result));
@@ -442,6 +454,27 @@ enum TetherError read_mf_register_byte(struct tether_handle * hnd, uint8_t reg, 
     return Tether_OK;
 }
 
+enum TetherError read_mf_register_byte_pump(struct tether_handle * hnd, uint8_t reg, uint8_t *reg_value) {
+    uint64_t cmd = ((uint32_t) reg) << 17;
+    uint64_t result;
+    lib_try(do_spi_txn_mf(hnd,24, cmd, &result));
+    if (!reg_value) {
+        return Tether_OK;
+    }
+    *reg_value = (uint8_t) (result & 0xFF);
+    return Tether_OK;
+}
+
+enum TetherError read_mf_register_byte(struct tether_handle * hnd, uint8_t reg, uint8_t *reg_value) {
+    switch (my_config) {
+        case TUNI_DGS:
+            return read_mf_register_byte_dgs(hnd, reg, reg_value);
+        case TUNI_PUMP:
+            return read_mf_register_byte_pump(hnd, reg, reg_value);
+        default:
+            return Tether_Error;
+    }
+}
 
 enum TetherError read_adc_register_byte(struct tether_handle * hnd, uint8_t reg, uint8_t *reg_value) {
     uint64_t cmd = 0x48000000 | (((uint32_t) reg) << 16);
@@ -488,17 +521,44 @@ enum TetherError read_mf_register_word(struct tether_handle * hnd, uint8_t reg, 
 }
 
 enum TetherError write_mf_register(struct tether_handle * hnd, uint8_t reg, uint16_t reg_value) {
-    uint64_t cmd = 0xD0000000 | (((uint32_t) reg) << 16) | (reg_value);
-    return do_spi_txn_mf(hnd, 32, cmd, NULL);
+    switch (my_config) {
+        case TUNI_DGS: {
+            uint64_t cmd = 0xD0000000 | (((uint32_t) reg) << 16) | (reg_value);
+            return do_spi_txn_mf(hnd, 32, cmd, NULL);
+        }
+        case TUNI_PUMP: {
+            uint64_t cmd = (((uint32_t) reg) << 17) | (1 << 16) | (reg_value << 8);
+            return do_spi_txn_mf(hnd, 24, cmd, NULL);
+        }
+        default:
+            return Tether_Error;
+    }
 }
 
 enum TetherError control_mf_daq(struct tether_handle * hnd, uint8_t flag) {
-    if (flag != 0) {
-        lib_try(write_word_to_address(hnd, tach_control_daq_spi_select, 1));
-        return write_word_to_address(hnd, tach_control_daq_enable, 1);
-    } else {
-        lib_try(write_word_to_address(hnd, tach_control_daq_enable, 0));
-        return write_word_to_address(hnd, tach_control_daq_spi_select, 0);
+    switch (my_config) {
+        case TUNI_PUMP:
+        {
+            if (flag != 0) {
+                lib_try(write_word_to_address(hnd, accel_mux_select, 1));
+                return write_word_to_address(hnd, accel_control_daq_enable, 1);
+            } else {
+                lib_try(write_word_to_address(hnd, accel_mux_select, 0));
+                return write_word_to_address(hnd, accel_control_daq_enable, 0);
+            }
+        }
+        case TUNI_DGS:
+        {
+            if (flag != 0) {
+                lib_try(write_word_to_address(hnd, tach_control_daq_spi_select, 1));
+                return write_word_to_address(hnd, tach_control_daq_enable, 1);
+            } else {
+                lib_try(write_word_to_address(hnd, tach_control_daq_enable, 0));
+                return write_word_to_address(hnd, tach_control_daq_spi_select, 0);
+            }
+        }
+        default:
+            return Tether_Error;
     }
 }
 
@@ -623,7 +683,11 @@ enum TetherError set_lfdaq_tc_decimation_factor(struct tether_handle * hnd, uint
 }
 
 enum TetherError set_mfdaq_round_time_clocks(struct tether_handle * hnd, uint32_t time_in_clocks) {
-    return write_int_to_address(hnd, tach_control_inter_sample_delay, time_in_clocks);
+    switch (my_config) {
+        case TUNI_DGS: return write_int_to_address(hnd, tach_control_inter_sample_delay, time_in_clocks);
+        case TUNI_PUMP: return write_int_to_address(hnd, accel_control_inter_sample_delay, time_in_clocks);
+    }
+    return Tether_Error;
 }
 
 enum TetherError get_download_fifo_status_register(struct tether_handle * hnd, uint16_t* status) {
