@@ -4,7 +4,7 @@ cmake_minimum_required(VERSION 3.0)
 find_path(ICE9_API_INCLUDE_DIR ice9.h)
 find_path(FRONTPANEL_INCLUDE_DIR okFrontPanel.h)
 
-set(LIB_SOURCES tether_api.c zip.c logger.c)
+set(LIB_SOURCES tether_api.c miniz.c logger.c)
 add_library(LIB_OBJECTS OBJECT ${LIB_SOURCES})
 set_target_properties(LIB_OBJECTS PROPERTIES POSITION_INDEPENDENT_CODE 1)
 target_compile_options(LIB_OBJECTS PRIVATE -Wall -Werror -Wno-unknown-pragmas)

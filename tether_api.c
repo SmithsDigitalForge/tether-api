@@ -13,7 +13,7 @@
 #include <bits/types/struct_timespec.h>
 #include <time.h>
 #include "ice9.h"
-#include "zip.h"
+#include "miniz.h"
 #include <okFrontPanel.h>
 
 #define lib_try(x) {ecode = (x); if (ecode != 0) {return(ecode);}}
@@ -155,9 +155,16 @@ enum TetherError tether_load_firmware(struct tether_handle *hnd, const char * fi
     if (!hnd || !hnd->is_valid) {
         return Tether_HandleInvalid;
     }
+    mz_zip_archive zip_archive;
     void *buf = NULL;
     size_t bufsize;
-    struct zip_t *zip = zip_open(filename, 0, 'r');
+
+    memset(&zip_archive, 0, sizeof(mz_zip_archive));
+    
+    if (!mz_zip_reader_init_file(&zip_archive, filename, 0)) {
+        return Tether_BitfileDownloadFailed;
+    }
+
     const char *fname = NULL;
     if (hnd->is_ice9 && simulated_mode) {
         fname = "ice9_sim.bit";
@@ -175,10 +182,15 @@ enum TetherError tether_load_firmware(struct tether_handle *hnd, const char * fi
         return Tether_InvalidParameter;
     }
     LOG_INFO("Selected firmware %s\n", fname);
-    zip_entry_open(zip, fname);
-    zip_entry_read(zip, &buf, &bufsize);
+
+    buf = mz_zip_reader_extract_file_to_heap(&zip_archive, fname, &bufsize, 0);
+
+    if (!buf) {
+        return Tether_BitfileDownloadFailed;
+    }
     LOG_INFO("Read firmware buffer of size %zu\n", bufsize);
-    zip_entry_close(zip);
+    mz_zip_reader_end(&zip_archive);
+    
     if (hnd->is_ice9) {
         ice9_flash_fpga_mem(buf, bufsize);
     } else {
